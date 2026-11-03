@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobbying Communications Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --bg:#f7f7f5; --panel:#ffffff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e1dc; --grid:#ecebe6; --accent:#2a5bd7;
+  --harper:#1f5fa8; --trudeau:#c0392b; --carney:#7a3fb0; --chip-bg:#f0efea; --warn-bg:#fff6df; --warn-ink:#6b5200; --ok:#2e8b57; --ff-bg:#3b3b37; --ff-ink:#fff;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#151514; --panel:#1e1e1c; --ink:#ecebe6; --muted:#9c9b95; --line:#34332f; --grid:#2a2a27; --accent:#7ea2ff;
+  --harper:#6fa3e8; --trudeau:#ec7a6c; --carney:#b98be6; --chip-bg:#2a2a27; --warn-bg:#2e2816; --warn-ink:#e9cf86; --ok:#6cc495; --ff-bg:#d9d7cf; --ff-ink:#1d1d1b;
+}}
+:root[data-theme="dark"]{
+  --bg:#151514; --panel:#1e1e1c; --ink:#ecebe6; --muted:#9c9b95; --line:#34332f; --grid:#2a2a27; --accent:#7ea2ff;
+  --harper:#6fa3e8; --trudeau:#ec7a6c; --carney:#b98be6; --chip-bg:#2a2a27; --warn-bg:#2e2816; --warn-ink:#e9cf86; --ok:#6cc495; --ff-bg:#d9d7cf; --ff-ink:#1d1d1b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1400px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 4px} h2{font-size:16px;margin:0 0 10px} h3{font-size:14px;margin:18px 0 8px}
+.sub{color:var(--muted);margin:0 0 18px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:24px 16px;text-align:center;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--accent)}
+.drop strong{display:block;font-size:15px;margin-bottom:4px}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:12px;font-size:13px}
+.files div{padding:8px 10px;border-radius:6px;background:var(--chip-bg);min-width:0}
+.files .fname{overflow-wrap:anywhere}
+.ok{color:var(--ok)} .miss{color:var(--muted)}
+.loaded{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+button{cursor:pointer} button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+button.link{border:0;background:none;padding:0;color:var(--accent);text-align:left;cursor:pointer}
+button.link:hover{text-decoration:underline}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.progress{height:6px;background:var(--chip-bg);border-radius:3px;overflow:hidden;margin-top:10px}
+.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+.note{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 12px;font-size:13px;margin:12px 0}
+.note p{margin:4px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);white-space:nowrap;background:var(--panel)}
+th.sort{cursor:pointer} th.sort:hover{color:var(--ink)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pm{display:inline-block;padding:1px 7px;border-radius:10px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+.pm-Harper{background:var(--harper)} .pm-Trudeau{background:var(--trudeau)} .pm-Carney{background:var(--carney)}
+tr.band-Harper td:first-child{box-shadow:inset 3px 0 var(--harper)}
+tr.band-Trudeau td:first-child{box-shadow:inset 3px 0 var(--trudeau)}
+tr.band-Carney td:first-child{box-shadow:inset 3px 0 var(--carney)}
+.clip{max-width:320px;max-height:4.4em;overflow:hidden}
+td.expand .clip{max-height:none}
+.muted{color:var(--muted)} .small{font-size:12px}
+.ff{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;font-weight:600;background:var(--ff-bg);color:var(--ff-ink);white-space:nowrap;text-transform:none;letter-spacing:0}
+details.fflist{margin-top:10px} details.fflist summary{cursor:pointer;font-weight:600}
+details.fflist table{margin-top:8px}
+.hidden{display:none !important}
+.pager{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px}
+.gsearch{min-width:260px;flex:1}
+/* chart */
+.chart{position:relative;margin-top:6px}
+.chart>svg{display:block;width:100%}
+.chart .axis{fill:var(--muted);font-size:11px}
+.chart .gridl{stroke:var(--grid);stroke-width:1}
+.chart .avg{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3;opacity:.6}
+.chart .hit{fill:transparent}
+.chart .hit:hover{fill:var(--ink);opacity:.05}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.12);white-space:nowrap;z-index:2}
+.legend{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.legend>span{white-space:nowrap}
+.legend svg,.legend .sw{vertical-align:middle !important;margin:-2px 5px 0 0}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+/* drill-down dialog */
+dialog{width:min(1240px,calc(100vw - 24px));max-height:calc(100vh - 24px);border:1px solid var(--line);border-radius:12px;padding:0;background:var(--panel);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dhead{position:sticky;top:0;z-index:3;background:var(--panel);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;align-items:center}
+.dhead h2{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.dbody{padding:12px 16px 20px}
+.kicker{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+@media (max-width:640px){ .gsearch{min-width:0;width:100%} .clip{max-width:220px} }
+</style>
+</head>
+<body>
+<main>
+<h1>Lobbying Communications Explorer</h1>
+<p class="sub">1. Download most recent monthly communication reports from https://www.lobbycanada.gc.ca/en/open-data. <br>2. Unzip the download and load the 5 CSV files. </p>
+
+<section id="loadSec">
+  <div id="loadForm">
+    <h2>1. Load the CSV files</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="fileInput" multiple accept=".csv" class="hidden">
+      <strong>Drop the CSV files here, or click to choose them</strong>
+      <span class="small muted">Select all five at once. Files are recognised by their column headers, so names don't matter.</span>
+    </label>
+    <div class="files" id="fileList"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="goBtn" disabled>Merge &amp; analyse</button>
+      <span id="status" class="muted small"></span>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+  </div>
+  <div id="loadedBar" class="loaded hidden">
+    <span><span class="ok">✓</span> <strong id="loadedSummary"></strong> <span class="small muted" id="loadedFiles"></span></span>
+    <button id="reloadBtn">Load different files</button>
+  </div>
+</section>
+
+<section id="statsSec" class="hidden">
+  <h2>2. Totals by Prime Minister and recent periods</h2>
+  <div class="row small" style="margin-bottom:8px">
+    <label>"Last 365 / 30 days" counted back from <input type="date" id="anchor"></label>
+    <button id="anchorToday">Today</button>
+    <button id="anchorLatest">Latest record</button>
+  </div>
+  <div class="scroll"><table id="summary"></table></div>
+
+  <h3>Communications per week, last 365 days</h3>
+  <div class="chart" id="mainChart"></div>
+
+  <div class="note" id="notes"></div>
+
+  <h2 style="margin-top:18px">Breakdown</h2>
+  <div id="mainBreak"></div>
+</section>
+
+<section id="tableSec" class="hidden">
+  <h2>3. All communications (one row each)</h2>
+  <div id="mainGrid"></div>
+</section>
+</main>
+
+<dialog id="dlg">
+  <div class="dhead">
+    <button id="dBack" title="Back">‹</button>
+    <h2 id="dTitle"></h2>
+    <button id="dClose">Close</button>
+  </div>
+  <div class="dbody" id="dBody"></div>
+</dialog>
+
+<script>
+"use strict";
+// ---------- Prime ministers & dates ----------
+const PMS = [
+  {name:'Harper',  start:'2006-02-06', end:'2015-11-03'},
+  {name:'Trudeau', start:'2015-11-04', end:'2025-03-13'},
+  {name:'Carney',  start:'2025-03-14', end:null}
+];
+const DAY = 86400000;
+const toDay = s => Math.floor(Date.parse(s + 'T00:00:00Z') / DAY);
+const fromDay = d => new Date(d * DAY).toISOString().slice(0, 10);
+const todayDay = () => { const t = new Date(); return toDay(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`); };
+PMS.forEach(p => { p.s = toDay(p.start); p.e = p.end ? toDay(p.end) : null; });
+function pmIndex(d){ return d >= PMS[2].s ? 2 : d >= PMS[1].s ? 1 : d >= PMS[0].s ? 0 : -1; }
+function weekdays(a, b){
+  if (b < a) return 0;
+  const n = b - a + 1, full = Math.floor(n / 7);
+  let c = full * 5; const dow = new Date((a + full * 7) * DAY).getUTCDay();
+  for (let i = 0; i < n % 7; i++){ const w = (dow + i) % 7; if (w !== 0 && w !== 6) c++; }
+  return c;
+}
+const nf = new Intl.NumberFormat('en-CA');
+const f1 = v => v >= 100 ? nf.format(Math.round(v)) : v.toFixed(v >= 10 ? 1 : 2);
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fmtDay = d => { const x = new Date(d * DAY); return `${MON[x.getUTCMonth()]} ${x.getUTCDate()}, ${x.getUTCFullYear()}`; };
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const clean = v => (v == null || v === 'null' || v === 'NULL') ? '' : v.trim();
+function debounce(fn, ms){ let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+// ---------- File handling ----------
+const KINDS = {
+  codes:   {label:'Subject matter codes', test:h => h.includes('SMT_EN_DESC'), order:0},
+  primary: {label:'Primary (communications)', test:h => h.includes('COMM_DATE') && h.includes('COMLOG_ID'), order:1},
+  dpoh:    {label:'Officials (DPOH)', test:h => h.includes('DPOH_LAST_NM_TCPD'), order:2},
+  subj:    {label:'Subject matters', test:h => h.includes('CUSTOM_SUBJ_OBJET_PERSO'), order:3},
+  details: {label:'Subject matter details', test:h => h.includes('DESCRIPTION') && h.includes('COMLOG_ID'), order:4}
+};
+const files = {};
+function renderFileList(){
+  $('fileList').innerHTML = Object.entries(KINDS).map(([k, v]) =>
+    `<div>${files[k] ? '<span class="ok">✓</span>' : '<span class="miss">○</span>'} ${v.label}${files[k] ? `<div class="small muted fname">${esc(files[k].name)}</div>` : ''}</div>`).join('');
+  $('goBtn').disabled = !files.primary;
+  $('status').textContent = files.primary ? '' : 'The Primary export is required; the others add detail.';
+}
+async function addFiles(list){
+  for (const f of list){
+    const head = await f.slice(0, 4000).text();
+    const first = head.split(/\r?\n/)[0].replace(/"/g, '').split(',');
+    const kind = Object.keys(KINDS).find(k => KINDS[k].test(first));
+    if (kind) files[kind] = f; else $('status').textContent = `Didn't recognise the columns in ${f.name}.`;
+  }
+  renderFileList();
+}
+$('fileInput').addEventListener('change', e => addFiles(e.target.files));
+const drop = $('drop');
+['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+$('reloadBtn').onclick = () => location.reload();
+renderFileList();
+
+function parseFile(file, onRow, label, base, span){
+  return new Promise((resolve, reject) => {
+    let idx = null;
+    Papa.parse(file, {
+      encoding: 'windows-1252', skipEmptyLines: true, chunkSize: 4 * 1024 * 1024,
+      chunk: res => {
+        const rows = res.data; let i = 0;
+        if (!idx){ idx = {}; rows[0].forEach((h, j) => idx[h.trim()] = j); i = 1; }
+        for (; i < rows.length; i++) onRow(rows[i], idx);
+        const pct = res.meta.cursor / file.size;
+        $('bar').style.width = (100 * (base + span * pct)).toFixed(1) + '%';
+        $('status').textContent = `Reading ${label}… ${Math.round(pct * 100)}%`;
+      },
+      complete: () => resolve(), error: reject
+    });
+  });
+}
+
+// ---------- Data model ----------
+const R = [];
+const byId = new Map();
+const codes = {};
+const CATS = {
+  client: {label:'Clients', one:'Client'},
+  lob:    {label:'Lobbyists', one:'Lobbyist'},
+  inst:   {label:'Departments / institutions lobbied', one:'Department / institution', short:'Departments'},
+  dpoh:   {label:'Government officials lobbied', one:'Government official', short:'Officials'},
+  ind:    {label:'Industry (fossil fuels vs other)', one:'Industry'},
+  subj:   {label:'Subject matter', one:'Subject matter'}
+};
+const ENT = {}; Object.keys(CATS).forEach(k => ENT[k] = {map:new Map(), names:[]});
+ENT.ind.names = ['Fossil fuels industry', 'Other industries'];
+
+// ---------- Fossil fuels classification ----------
+// [segment, [[canonical organization name, regex on the normalised client name], ...]]
+const FOSSIL_RULES = [["Producers (oil, gas, oil sands)",[["Suncor Energy","^suncor\\b|^petro canada$"],["Imperial Oil","^imperial oil$"],["Cenovus Energy","^cenovus energy$"],["Shell Canada","^shell canada( energy)?$"],["Canadian Natural Resources","^canadian natural resources$|^cnrl$"],["Ovintiv (formerly Encana)","^ovintiv( canada)?$|^encana( corportation| oil and gas partnership)?$"],["ConocoPhillips Canada","^conoco ?phillips canada( resources| limited)?$"],["Tourmaline Oil","^tourmaline oil$"],["Chevron","^chevron( canada( resources)?)?$"],["Husky Energy","^husky (oil operations|energy)$"],["ExxonMobil Canada","^exxonmobil canada$"],["Marathon Oil Canada","^marathon oil canada$"],["Repsol","^repsol( oil and gas canada)?$"],["Talisman Energy","^talisman energy$"],["CNOOC (incl. Nexen)","^cnooc (petroleum north america|international)$|^nexen( energy)?$"],["PETRONAS (incl. Progress Energy)","^petronas|^petroliam nasional|^progress energy (canada|resources)$"],["Sinopec Canada","^sinopec canada$"],["PetroChina Canada","^petrochina canada$"],["Syncrude Canada","^syncrude canada$"],["Canadian Oil Sands","^canadian oils? sands$"],["Athabasca Oil Sands Corporation","^athabasca oil sands$"],["MEG Energy","^meg energy$"],["Equinor (formerly Statoil)","^(statoil|equinor) canada$"],["BHP Petroleum","^bhp petroleum"],["Woodside Energy","^woodside energy"],["TotalEnergies E&P Canada","^total e and p canada$"],["BP Canada","^bp canada( energy group)?$"],["Kiwetinohk Energy","^kiwetinohk energy$"],["Laricina Energy","^laricina energy$"],["Lone Pine Resources","^lone pine resources$"],["Seven Generations Energy","seven generations energy$"],["Pengrowth Energy","^pengrowth energy$"],["ARC Resources","^arc resources$"],["Questerre Energy","^questerre energy$"],["Greenfire Oil and Gas","^greenfire oil and gas$"],["Pieridae Energy","^pieridae energy$"],["Apache Kitimat Upstream","^apache kitimat upstream$"],["WesternZagros Resources","^western ?zagros resources$"],["TransGlobe Energy","^transglobe energy$"],["Whiting Petroleum","^whiting petroleum$"],["Bankers Petroleum","^bankers petroleum$"],["Gran Tierra Energy","^gran tierra energy$"],["Petrobank Energy & Resources","^petrobank energy and resources$"],["Tecpetrol","^tecpetrol"],["Reconnaissance Energy Africa","^reconnaissance energy africa$"],["Enhance Energy (CO2 enhanced oil recovery)","^enhance energy$"],["International Petroleum Investment Company","^international petroleum investment$"],["EPIC Oil Extractors","^epic oil extractors$"]]],["Pipelines and midstream",[["TC Energy (formerly TransCanada)","^tc energy$|^transcanada( pipelines| pipe lines)?$"],["Enbridge","^enbridge$"],["Pembina Pipeline","^pembina pipeline$"],["Spectra Energy (Westcoast Energy)","^westcoast energy|^spectra energy( transmission)?$"],["Kinder Morgan","^kinder morgan( canada| cochin)?$"],["Trans Mountain","^trans mountain( pipeline)?$"],["Inter Pipeline","^inter pipeline( fund)?$"],["Keyera","^keyera$"],["Gibson Energy","^gibson energy$"],["AltaGas","^altagas$"],["NorthRiver Midstream","^northriver midstream$"],["Tidewater Midstream","^tidewater midstream"],["Veresen (incl. Fort Chicago)","^veresen midstream$|^fort chicago energy partners$"],["Williams Energy Canada","^williams energy canada$"],["Northeast Midstream","^northeast midstream$"],["NNC Midstream Partners","^nnc midstream partners$"],["Northern Gateway Pipeline","^northern gateway pipeline$"],["Gazoduq","^gazoduq$"],["Denali Alaska Gas Pipeline","^denali the alaska gas pipeline$"],["Mackenzie Valley Aboriginal Pipeline","^mackenzie valley aboriginal pipeline$"],["Western Indigenous Pipeline Group","^western indigenous pipeline group"],["First Canadian Pipeline","^first canadian pipeline$"],["Vopak (fuel terminals)","^vopak"],["Ridley Terminals (coal and LPG export)","^ridley terminals"],["Westshore Terminals (coal export)","^westshore terminals"]]],["LNG",[["LNG Canada","^lng canada development$"],["Woodfibre LNG","^woodfibre"],["Pacific NorthWest LNG","^pacific northwest lng$"],["Cedar LNG","^cedar lng partners"],["Ksi Lisims LNG (Western LNG)","^western lng$|^western ca holdco"],["Bear Head LNG","^bear head lng$"],["LNG Quebec (GNL Québec)","^lng quebec$"],["Diamond LNG Canada","^diamond lng canada$"],["Calais LNG","^calais lng$"],["Rockies LNG Partners","^rockies lng partners$"],["Steelhead LNG","^steehead lng$|^steelhead lng$"],["Maple LNG","^maple ?lng$"],["LNG Producer Consortium","^lng producer consortium$"],["First Peoples Pipeline LNG","^first peoples pipeline lng$"],["Eagle Spirit Energy","^eagle spirit energy"],["WesPac Midstream (LNG terminal)","^wespac midstream"],["Canadian LNG Alliance","^canadian lng alliance$"]]],["Refining, fuel marketing and distribution",[["Irving Oil","^irving oil$"],["Parkland","^parkland( fuel)?$"],["Valero (Ultramar)","^(energy )?valero( energy)?$|^ultramar"],["North Atlantic Refining","^north atlantic refining$"],["North West Refining (Sturgeon refinery)","^north west refining$"],["Pacific Future Energy (proposed refinery)","^pacific future energy$"],["Sunoco LP","^sunoco$"],["Original Traders Energy","^original traders energy$"],["Sterling Fuels","^sterling fuels$"],["Wilson Fuel","^wilson fuel$"],["Norcan Petroleum Products","^norcan petroleum products"],["AP Fuels","^ap fuels$"]]],["Gas utilities",[["ATCO","^atco( group| power| frontec)?$"],["FortisBC (gas utility)","^fortisbc( energy)?$"],["Énergir (formerly Gaz Métro)","^energir$|^gaz metro"],["Union Gas","^union gas$"],["Heritage Gas","^heritage gas$"],["Eastward Energy (NS gas distribution)","^eastward energy$"],["TriSummit Utilities (formerly AltaGas Canada)","^trisummit utilities$|^altagas utility group$"]]],["Coal",[["Teck Resources (coal until 2024)","^teck( resources)?$"],["Teck Coal","^teck coal$"],["Elk Valley Resources","^elk valley resources$"],["Glencore (incl. Xstrata Coal)","^glencore|^xstrata coal canada$"],["Westmoreland Coal","^westmoreland coal$"],["Conuma Resources","^conuma resources$"],["Benga Mining (Riversdale)","^benga mining"],["Montem Resources","^montem resources"],["Crown Mountain Resources (formerly NWP Coal)","^crown mountain resources$|^nwp coal canada$"],["Canada Coal","^canada coal$"],["North Coal","^north coal$"],["Boreas Coal","^boreas coal$"],["Kameron Coal Management","^kameron coal management$"],["Peace River Coal","^peace river coal$"],["Anglo American Coal","^anglo american coal$"],["Walter Energy","^walter energy$"]]],["Petrochemicals",[["NOVA Chemicals","^nova chemicals$"],["Canada Kuwait Petrochemical","^canada kuwait petrochemical$"],["Methanex","^methanex$"],["Nauticol Energy (gas-to-methanol)","^nauticol energy$"]]],["Oil and gas services",[["Enserva (formerly PSAC)","^enserva$|^petroleum services association of canada$"],["Canadian Association of Energy Contractors (formerly CAODC)","^canadian association of (energy contractors|oilwell drilling contractors)$"],["Pipe Line Contractors Association of Canada","^pipe line contractors association of canada$"],["Source Energy Services (frac sand)","^source energy services$"],["Petrospec Engineering","^petrospec engineering$"]]],["Industry associations and advocacy",[["Canadian Association of Petroleum Producers (CAPP)","canadian association of petroleum producers$|^capp$"],["Oil Sands Alliance (formerly Pathways Alliance)","^oil sands alliance$|^pathways alliance$"],["In Situ Oil Sands Alliance","^(alberta )?in situ oil sands alliance$"],["Explorers and Producers Association of Canada (EPAC)","explorers( and)? producers association of canada$"],["Canadian Gas Association","^canadian gas association$"],["Canadian Fuels Association","^canadian fuels association$"],["Canadian Energy Pipeline Association","^canadian energy pipeline association$"],["Canadian Propane Association","^canadian propane association$|^propane gas association of canada$"],["Canadian Independent Petroleum Marketers Association","^canadian independ[ae]nt petroleum marketers association$"],["Canadian Energy Marketers Association","^canadian energy marketers association$"],["Canadian Natural Gas Vehicle Alliance","^canadian natural gas vehicle alliance$"],["Canadian Society for Unconventional Gas","^canadian society for unconventional gas$"],["Energy NL (offshore oil and gas)","^energy nl$|^newfoundland offshore industries association$"],["Clean Resource Innovation Network (oil and gas)","^clean resource innovation network$"],["Coal Association of Canada","^coal association of canada"],["Coal Alliance","^coal alliance$"],["Northern Coal Coalition","^northern coal coalition$"]]],["Business advocacy groups",[["Canadian Chamber of Commerce","^canadian chamber of commerce$"],["Business Council of Canada","^business council of canada$"],["Business Council of Alberta","^business council of alberta$"],["Calgary Chamber of Commerce","^calgary chamber of commerce$"],["Edmonton Chamber of Commerce","^edmonton chamber of commerce$"],["United States Chamber of Commerce","^united states chamber of commerce$"]]],["Banks and finance",[["Canadian Bankers Association","^canadian bankers association$"],["RBC Royal Bank","^royal bank of canada$"],["TD Bank","^toronto dominion bank$|^td bank financial group$"],["Scotiabank","^scotiabank$|^bank of nova scotia$"],["BMO Financial Group","^bmo financial group$"],["CIBC","^canadian imperial bank of commerce$"],["National Bank of Canada","^national bank (of canada|financial)$"],["Citibank Canada","^citibank canada$|^citi cards canada$"],["HSBC Bank Canada","^hsbc bank canada$"],["Bank of America (BofA Canada Bank)","^bofa canada bank$"],["Barclays","^barclays$"],["Deutsche Bank","^deutsche bank"],["China Construction Bank","^china construction bank$"],["Agricultural Bank of China","^agricultural bank of china"],["Bank of Communications","^bank of communications$"],["ARC Financial (energy private equity)","^arc financial$"],["Waterous Energy Fund","^waterous energy fund$"],["The Energy & Minerals Group (energy private equity)","^energy and minerals group$"]]]];
+const FOSSIL = FOSSIL_RULES.flatMap(([seg, items]) => items.map(([name, rx]) => ({seg, name, rx:new RegExp(rx)})));
+// Normalised name: no accents, no parentheticals, no punctuation, no legal suffixes.
+function normName(s){
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const t = s.replace(/\(.*?\)/g, ' '); if (t.trim()) s = t;
+  s = s.replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^the /, '');
+  let prev;
+  do { prev = s; s = s.replace(/( (inc|incorporated|ltd|ltee|limited|corp|corporation|co|company|ulc|lp|llc|plc|sa|s a|l p|the))+$/, '').trim(); } while (prev !== s);
+  return s;
+}
+const CLIENT_FF = [];        // client id -> fossil rule (or undefined)
+const CLIENT_VARIANTS = [];  // client id -> Set of raw names merged into it
+const clientCache = new Map();
+function clientId(raw){
+  let id = clientCache.get(raw);
+  if (id !== undefined) return id;
+  const key = normName(raw) || raw.toLowerCase();
+  const rule = FOSSIL.find(f => f.rx.test(key));
+  id = rule ? intern('client', 'ff:' + rule.name, rule.name) : intern('client', key, raw);
+  if (rule) CLIENT_FF[id] = rule;
+  (CLIENT_VARIANTS[id] ||= new Set()).add(raw);
+  clientCache.set(raw, id);
+  return id;
+}
+function intern(cat, key, name){
+  const e = ENT[cat]; let id = e.map.get(key);
+  if (id === undefined){ id = e.names.length; e.map.set(key, id); e.names.push(name); }
+  return id;
+}
+const REGTYPE = {'1':'Consultant', '2':'In-house (corporation)', '3':'In-house (organization)'};
+let dataMin = 0, dataMax = 0;
+function titleCase(s){ return s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s\-'’])\p{L}/gu, m => m.toUpperCase()) : s; }
+
+const HANDLERS = {
+  codes(r, ix){ codes[clean(r[ix.SUBJECT_CODE_OBJET])] = clean(r[ix.SMT_EN_DESC]); },
+  primary(r, ix){
+    const id = clean(r[ix.COMLOG_ID]); if (!id) return;
+    const date = clean(r[ix.COMM_DATE]), d = toDay(date);
+    const client = clean(r[ix.EN_CLIENT_ORG_CORP_NM_AN]) || clean(r[ix.FR_CLIENT_ORG_CORP_NM]);
+    const reg = titleCase([clean(r[ix.RGSTRNT_1ST_NM_PRENOM_DCLRNT]), clean(r[ix.RGSTRNT_LAST_NM_DCLRNT])].filter(Boolean).join(' '));
+    const rec = {
+      id, date, d, pm: pmIndex(d), client, reg, type: clean(r[ix.REG_TYPE_ENR]),
+      sub: clean(r[ix.SUBMISSION_DATE_SOUMISSION]), posted: clean(r[ix.POSTED_DATE_PUBLICATION]),
+      prev: clean(r[ix.PREV_COMLOG_ID_PRECEDNT]),
+      c: clientId(client),
+      l: intern('lob', reg.toLowerCase().replace(/\s+/g, ' '), reg),
+      dp: [], inst: [], subj: [], det: [], hay: null
+    };
+    rec.ind = CLIENT_FF[rec.c] ? 0 : 1;
+    byId.set(id, rec); R.push(rec);
+  },
+  dpoh(r, ix){
+    const rec = byId.get(clean(r[ix.COMLOG_ID])); if (!rec) return;
+    const name = [clean(r[ix.DPOH_FIRST_NM_PRENOM_TCPD]), clean(r[ix.DPOH_LAST_NM_TCPD])].filter(Boolean).join(' ');
+    const inst = clean(r[ix.INSTITUTION]) || clean(r[ix.OTHER_INSTITUTION_AUTRE]) || 'Unspecified';
+    rec.dp.push({n:name, t:clean(r[ix.DPOH_TITLE_TITRE_TCPD]), i:inst,
+      id: name ? intern('dpoh', name.toLowerCase().replace(/\s+/g, ' '), titleCase(name)) : -1});
+    const ii = intern('inst', inst.toLowerCase(), inst);
+    if (!rec.inst.includes(ii)) rec.inst.push(ii);
+  },
+  subj(r, ix){
+    const rec = byId.get(clean(r[ix.COMLOG_ID])); if (!rec) return;
+    const c = clean(r[ix.SUBJECT_CODE_OBJET]), custom = clean(r[ix.CUSTOM_SUBJ_OBJET_PERSO]);
+    const label = custom || codes[c] || c;
+    if (label && !rec.subj.includes(label)) rec.subj.push(label);
+  },
+  details(r, ix){
+    const rec = byId.get(clean(r[ix.COMLOG_ID])); if (!rec) return;
+    const t = clean(r[ix.DESCRIPTION]); if (t && !rec.det.includes(t)) rec.det.push(t);
+    // Newer records list their subject codes here (e.g. "SMT-39, SMT-51") rather than in the Subject matters file.
+    for (const c of clean(r[ix.SUBJECT_CODE_OBJET]).split(/[,;]\s*/)){
+      const code = c.trim(); if (!code) continue;
+      const label = codes[code] || code;
+      if (!rec.subj.includes(label)) rec.subj.push(label);
+    }
+  }
+};
+const MATCH = {
+  client: id => r => r.c === id,
+  lob:    id => r => r.l === id,
+  inst:   id => r => r.inst.includes(id),
+  dpoh:   id => r => r.dp.some(d => d.id === id),
+  ind:    id => r => r.ind === id,
+  subj:   id => r => r.sj.includes(id)
+};
+
+$('goBtn').addEventListener('click', async () => {
+  $('goBtn').disabled = true;
+  const order = Object.keys(KINDS).filter(k => files[k]).sort((a, b) => KINDS[a].order - KINDS[b].order);
+  const total = order.reduce((s, k) => s + files[k].size, 0);
+  let done = 0;
+  try {
+    for (const k of order){
+      const f = files[k];
+      await parseFile(f, HANDLERS[k], KINDS[k].label, done / total, f.size / total);
+      done += f.size;
+    }
+    finish(order.length);
+  } catch (err){ $('status').textContent = 'Error: ' + err.message; console.error(err); }
+});
+
+// ---------- Periods & stats ----------
+let PERIODS = [], MAIN_STATS = [], mainBreak, mainGrid;
+function buildPeriods(){
+  const anchor = toDay($('anchor').value) || dataMax;
+  const today = todayDay();
+  const ps = PMS.map((p, i) => {
+    const covS = Math.max(p.s, dataMin), covE = p.e ?? Math.max(today, dataMax);
+    return {key:'pm' + i, label:p.name, kind:'pm', pm:i, s:covS, e:covE,
+      sub:`${p.start} – ${p.end || 'present'}` + (covS > p.s ? `<br><span class="muted">records from ${fromDay(covS)}</span>` : '')};
+  });
+  ps.push({key:'y', label:'Last 365 days', kind:'win', s:anchor - 364, e:anchor, sub:`${fromDay(anchor - 364)} – ${fromDay(anchor)}`});
+  ps.push({key:'m', label:'Last 30 days', kind:'win', s:anchor - 29, e:anchor, sub:`${fromDay(anchor - 29)} – ${fromDay(anchor)}`});
+  ps.forEach(p => { p.weeks = weekdays(p.s, p.e) / 5; });
+  return ps;
+}
+function computeStats(rows){
+  const S = PERIODS.map(() => ({n:0, instContacts:0, dpohContacts:0, client:new Map(), lob:new Map(), inst:new Map(), dpoh:new Map(), ind:new Map(), subj:new Map()}));
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  for (const r of rows){
+    let ids = null;
+    for (let i = 0; i < PERIODS.length; i++){
+      const p = PERIODS[i];
+      if (p.kind === 'pm' ? r.pm !== p.pm : (r.d < p.s || r.d > p.e)) continue;
+      if (!ids){ ids = new Set(); for (const d of r.dp) if (d.id >= 0) ids.add(d.id); }
+      const s = S[i]; s.n++;
+      bump(s.client, r.c); bump(s.lob, r.l); bump(s.ind, r.ind);
+      for (const x of r.sj) bump(s.subj, x);
+      for (const x of r.inst) bump(s.inst, x);
+      for (const x of ids) bump(s.dpoh, x);
+      s.instContacts += r.inst.length; s.dpohContacts += ids.size;
+    }
+  }
+  return S;
+}
+const pmCell = p => p.kind === 'pm' ? `<span class="pm pm-${p.label}">${p.label}</span>` : `<strong>${p.label}</strong>`;
+function summaryHTML(stats, omit){
+  const cats = ['client','lob','inst','dpoh'].filter(c => c !== omit);
+  const share = omit !== 'client' && omit !== 'ind';
+  const hdr = {client:'Clients', lob:'Lobbyists', inst:'Departments', dpoh:'Officials'};
+  let h = `<thead><tr><th>Period</th><th class="num">Work weeks</th><th class="num">Communications</th><th class="num">per week</th>
+    ${cats.map(c => `<th class="num">${hdr[c]}</th>`).join('')}
+    <th class="num">Dept. contacts / wk</th><th class="num">Official contacts / wk</th>${share ? '<th class="num">Fossil fuels share</th>' : ''}</tr></thead><tbody>`;
+  PERIODS.forEach((p, i) => {
+    const S = stats[i], w = p.weeks || 1;
+    h += `<tr><td>${pmCell(p)}<div class="small muted">${p.sub}</div></td>
+      <td class="num">${f1(p.weeks)}</td><td class="num">${nf.format(S.n)}</td><td class="num"><strong>${f1(S.n / w)}</strong></td>
+      ${cats.map(c => `<td class="num">${nf.format(S[c].size)}</td>`).join('')}
+      <td class="num">${f1(S.instContacts / w)}</td><td class="num">${f1(S.dpohContacts / w)}</td>${share ? `<td class="num">${S.n ? (100 * (S.ind.get(0) || 0) / S.n).toFixed(1) + '%' : '–'}</td>` : ''}</tr>`;
+  });
+  return h + '</tbody>';
+}
+function rebuildMain(){
+  PERIODS = buildPeriods();
+  MAIN_STATS = computeStats(R);
+  $('summary').innerHTML = summaryHTML(MAIN_STATS, null);
+  renderNotes();
+  drawWeekly($('mainChart'), R);
+  if (!mainBreak) mainBreak = new Breakdown($('mainBreak'), () => MAIN_STATS, null);
+  else mainBreak.reset();
+}
+function renderNotes(){
+  const h = PERIODS[0];
+  $('notes').innerHTML = `
+  <p><strong>Why per-week rates:</strong> Harper took office ${PMS[0].start}, but monthly communication reports only began under the <em>Lobbying Act</em> on 2 July 2008, so the registry has no records for roughly the first 2½ years of his time in office. Raw totals would understate the Harper era, so each period's totals are divided by the number of 5-day work weeks (weekdays ÷ 5) the records actually cover: for Harper, ${fromDay(h.s)} to ${fromDay(h.e)} (${f1(h.weeks)} weeks).</p>
+  <p><strong>PM at the time</strong> is assigned by communication date: Harper before 4 Nov 2015, Trudeau from 4 Nov 2015, Carney from 14 Mar 2025.</p>
+  <p><strong>Recent periods:</strong> lobbyists have until the 15th of the following month to file, and the latest record in these files is ${fromDay(dataMax)}, so recent weeks are incomplete (hatched in the chart).</p>
+  <p><strong>Lobbyists</strong> are the registrants who filed each report: consultant lobbyists, or the senior officer of an in-house corporation or organization. These exports don't name lobbying firms.</p>
+  <p><strong>Fossil fuels industry</strong> covers clients that produce, transport, refine or sell oil, gas or coal (including LNG, gas utilities, petrochemicals and oil and gas services). It also covers their industry associations; business groups that advocate heavily for the sector (Canadian Chamber of Commerce, Business Council of Canada, Business Council of Alberta, the Calgary and Edmonton chambers, U.S. Chamber of Commerce); and banks and financiers among the largest lenders to fossil fuels (the Big Six and their association, plus Citi, HSBC, Bank of America, Barclays, Deutsche Bank and major Chinese banks). Electric utilities, insurers, pension funds and renewable-fuel or hydrogen companies count as other industries. Client names filed under different numbers or spellings, or renamed (e.g. Pathways Alliance → Oil Sands Alliance, TransCanada → TC Energy, Encana → Ovintiv), are merged into one client.</p>
+  <p><strong>Counting:</strong> "Departments" and "Officials" are distinct counts. "Contacts / wk" counts each department or official once per communication. In the breakdown, each figure is the number of communications involving that client, lobbyist, department or official.</p>
+  ${fossilListHTML()}`;
+}
+
+function fossilListHTML(){
+  const counts = new Map();
+  for (const r of R) if (r.ind === 0) counts.set(r.c, (counts.get(r.c) || 0) + 1);
+  const bySeg = new Map();
+  for (const [id, n] of counts){ const seg = CLIENT_FF[id].seg; if (!bySeg.has(seg)) bySeg.set(seg, []); bySeg.get(seg).push([id, n]); }
+  const segs = FOSSIL_RULES.map(s => s[0]).filter(s => bySeg.has(s));
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  let h = `<details class="fflist"><summary>Organizations counted as fossil fuels industry (${nf.format(counts.size)} organizations, ${nf.format(total)} communications)</summary>
+    <div class="scroll"><table><thead><tr><th>Segment</th><th>Organization</th><th>Names as filed</th><th class="num">Communications</th></tr></thead><tbody>`;
+  for (const seg of segs){
+    const list = bySeg.get(seg).sort((a, b) => b[1] - a[1]);
+    const segTotal = list.reduce((a, b) => a + b[1], 0);
+    list.forEach(([id, n], i) => {
+      h += `<tr>${i === 0 ? `<td rowspan="${list.length}"><strong>${esc(seg)}</strong><div class="small">${nf.format(segTotal)} communications</div></td>` : ''}
+        <td><button class="link" data-cat="client" data-id="${id}">${esc(ENT.client.names[id])}</button></td>
+        <td class="small muted">${[...CLIENT_VARIANTS[id]].map(esc).join('<br>')}</td><td class="num">${nf.format(n)}</td></tr>`;
+    });
+  }
+  return h + '</tbody></table></div></details>';
+}
+$('notes').addEventListener('click', e => { const b = e.target.closest('button.link'); if (b) openEntity(b.dataset.cat, +b.dataset.id); });
+
+// ---------- Weekly bar chart ----------
+let chartSeq = 0;
+function completeThrough(){
+  // Month M is fully filed once the 15th of M+1 has passed.
+  const t = new Date(todayDay() * DAY); let y = t.getUTCFullYear(), m = t.getUTCMonth();
+  m -= t.getUTCDate() > 15 ? 1 : 2;              // last fully-filed month
+  if (m < 0){ m += 12; y--; }
+  return Math.floor(Date.UTC(y, m + 1, 0) / DAY); // last day of that month
+}
+function drawWeekly(host, rows){
+  host._rows = rows;
+  const anchor = PERIODS[3].e, start = PERIODS[3].s;
+  const ws = d => d - ((new Date(d * DAY).getUTCDay() + 6) % 7);
+  const first = ws(start), n = Math.floor((anchor - first) / 7) + 1;
+  const bins = Array.from({length:n}, (_, i) => ({s:first + i * 7, c:0}));
+  for (const r of rows) if (r.d >= start && r.d <= anchor) bins[(ws(r.d) - first) / 7].c++;
+  const cut = completeThrough();
+  bins.forEach(b => {
+    b.e = b.s + 6; b.partial = b.s < start || b.e > anchor; b.inc = b.e > cut;
+  });
+  const full = bins.filter(b => !b.partial && !b.inc);
+  const avg = full.length ? full.reduce((s, b) => s + b.c, 0) / full.length : 0;
+  const W = Math.max(320, host.clientWidth), H = 220, ml = 44, mr = 10, mt = 12, mb = 26;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const maxV = Math.max(1, ...bins.map(b => b.c), avg);
+  const step = niceStep(maxV / 4), top = Math.ceil(maxV / step) * step;
+  const y = v => mt + ph - (v / top) * ph, slot = pw / n, gap = Math.min(2, slot * .25), bw = slot - gap;
+  const id = 'h' + (++chartSeq);
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Communications per week over the last 365 days">
+    <defs><pattern id="${id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" style="fill:var(--accent)" opacity=".28"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--accent)" stroke-width="2.5"/></pattern></defs>`;
+  for (let v = 0; v <= top; v += step){
+    s += `<line class="gridl" x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${ml - 6}" y="${y(v) + 4}" text-anchor="end">${nf.format(v)}</text>`;
+  }
+  let lastLabelX = -99, lastMonth = -1;
+  bins.forEach((b, i) => {
+    const x = ml + i * slot + gap / 2, h = Math.max(0, y(0) - y(b.c));
+    if (b.c > 0){
+      const r = Math.min(4, bw / 2, h);
+      s += `<path class="bar" style="fill:${b.inc || b.partial ? `url(#${id})` : 'var(--accent)'}" d="M${x},${y(0)}V${y(0) - h + r}Q${x},${y(0) - h} ${x + r},${y(0) - h}H${x + bw - r}Q${x + bw},${y(0) - h} ${x + bw},${y(0) - h + r}V${y(0)}Z"/>`;
+    }
+    const mo = new Date(Math.max(b.s, start) * DAY).getUTCMonth();
+    if (mo !== lastMonth){
+      lastMonth = mo;
+      if (x - lastLabelX > 34){ const yr = new Date(Math.max(b.s, start) * DAY).getUTCFullYear();
+        s += `<text class="axis" x="${x}" y="${H - 8}">${MON[mo]}${mo === 0 || i === 0 ? ' ' + String(yr).slice(2) : ''}</text>`; lastLabelX = x; }
+    }
+  });
+  if (avg) s += `<line class="avg" x1="${ml}" x2="${W - mr}" y1="${y(avg)}" y2="${y(avg)}"/>`;
+  bins.forEach((b, i) => { s += `<rect class="hit" data-i="${i}" x="${ml + i * slot}" y="${mt}" width="${slot}" height="${ph}"/>`; });
+  s += `<line x1="${ml}" x2="${W - mr}" y1="${y(0)}" y2="${y(0)}" style="stroke:var(--muted)" stroke-width="1"/></svg>`;
+  const anyInc = bins.some(b => b.inc || b.partial);
+  s += `<div class="legend"><span><span class="sw" style="background:var(--accent)"></span>Communications in the week (Mon–Sun)</span>
+    ${avg ? `<span><svg width="18" height="10" style="vertical-align:0"><line x1="0" x2="18" y1="5" y2="5" class="avg"/></svg> Average of complete weeks: <strong style="color:var(--ink)">${f1(avg)}</strong>/wk</span>` : ''}
+    ${anyInc ? `<span><svg width="12" height="12" style="vertical-align:-2px"><rect width="12" height="12" rx="3" fill="url(#${id})"/></svg> Incomplete week (filings not yet due, or window edge)</span>` : ''}</div>
+    <div class="tip hidden"></div>`;
+  host.innerHTML = s;
+  const tip = host.querySelector('.tip');
+  host.querySelectorAll('.hit').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const b = bins[+el.dataset.i], box = host.getBoundingClientRect();
+      tip.innerHTML = `<strong>${fmtDay(Math.max(b.s, start))} – ${fmtDay(Math.min(b.e, anchor))}</strong><br>${nf.format(b.c)} communication${b.c === 1 ? '' : 's'}`
+        + (b.partial ? '<br><span class="muted">Partial week (window edge)</span>' : b.inc ? '<br><span class="muted">Filing deadline not yet passed</span>' : '');
+      tip.classList.remove('hidden');
+      const tx = e.clientX - box.left + 12;
+      tip.style.left = Math.min(tx, box.width - tip.offsetWidth - 4) + 'px';
+      tip.style.top = (e.clientY - box.top - 10) + 'px';
+    });
+    el.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+  });
+}
+function niceStep(x){ const p = Math.pow(10, Math.floor(Math.log10(x || 1))), m = x / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+window.addEventListener('resize', debounce(() => document.querySelectorAll('.chart').forEach(h => h._rows && h.offsetParent && drawWeekly(h, h._rows)), 150));
+
+// ---------- Breakdown component ----------
+class Breakdown {
+  constructor(host, getStats, omit){
+    this.host = host; this.getStats = getStats; this.omit = omit;
+    const cats = Object.keys(CATS).filter(c => c !== omit);
+    host.innerHTML = `<div class="row small" style="margin-bottom:8px">
+      <select class="cat">${cats.map(c => `<option value="${c}">${CATS[c].label}</option>`).join('')}</select>
+      <label>rank by <select class="rank"></select></label>
+      <label>show <select class="top"><option>25</option><option selected>50</option><option>100</option><option>250</option></select></label>
+      <input type="search" class="flt" placeholder="Filter names…"></div>
+      <div class="small muted" style="margin-bottom:6px">Each cell: communication records in that period, with the per-week rate (5-day weeks) underneath. Click a name to see its lobbying.</div>
+      <div class="scroll"><table></table></div>`;
+    this.q = s => host.querySelector(s);
+    ['.cat','.rank','.top'].forEach(s => this.q(s).addEventListener('change', () => this.render()));
+    this.q('.flt').addEventListener('input', debounce(() => this.render(), 200));
+    this.q('table').addEventListener('click', e => { const b = e.target.closest('button.link'); if (b) openEntity(b.dataset.cat, +b.dataset.id); });
+    this.reset();
+  }
+  reset(){
+    this.q('.rank').innerHTML = PERIODS.map((p, i) => `<option value="${i}" ${p.key === 'y' ? 'selected' : ''}>${p.label}</option>`).join('');
+    this.render();
+  }
+  render(){
+    const stats = this.getStats(), cat = this.q('.cat').value, rank = +this.q('.rank').value, top = +this.q('.top').value;
+    const fq = this.q('.flt').value.trim().toLowerCase(), names = ENT[cat].names;
+    let ids = [...stats[rank][cat].entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    if (fq) ids = ids.filter(id => names[id].toLowerCase().includes(fq));
+    ids = ids.slice(0, top);
+    const head = PERIODS.map(p => `<th class="num">${p.kind === 'pm' ? `<span class="pm pm-${p.label}">${p.label}</span>` : p.label}</th>`).join('');
+    let h = `<thead><tr><th>#</th><th>Name</th>${head}</tr></thead><tbody>`;
+    ids.forEach((id, n) => {
+      h += `<tr><td class="muted">${n + 1}</td><td><button class="link" data-cat="${cat}" data-id="${id}">${esc(names[id] || '(unnamed)')}</button></td>` + PERIODS.map((p, i) => {
+        const c = stats[i][cat].get(id) || 0;
+        return `<td class="num">${c ? nf.format(c) + `<div class="small muted">${f1(c / (p.weeks || 1))}/wk</div>` : '<span class="muted">–</span>'}</td>`;
+      }).join('') + '</tr>';
+    });
+    if (!ids.length) h += `<tr><td colspan="${PERIODS.length + 2}" class="muted">No records in this period.</td></tr>`;
+    this.q('table').innerHTML = h + '</tbody>';
+  }
+}
+
+// ---------- Grid component ----------
+const COLS = {
+  id:     {l:'ID', sort:r => +r.id},
+  date:   {l:'Date', sort:r => r.d},
+  pm:     {l:'PM', sort:r => r.pm},
+  client: {l:'Client', sort:r => r.client.toLowerCase()},
+  ind:    {l:'Industry', sort:r => r.ind},
+  reg:    {l:'Lobbyist', sort:r => r.reg.toLowerCase()},
+  type:   {l:'Type', sort:r => r.type},
+  inst:   {l:'Departments'},
+  dp:     {l:'Officials lobbied'},
+  subj:   {l:'Subjects'},
+  det:    {l:'Details'},
+  sub:    {l:'Submitted', sort:r => r.sub}
+};
+function hay(r){
+  if (!r.hay) r.hay = [r.id, r.date, PMS[r.pm]?.name, r.client, r.reg, REGTYPE[r.type],
+    r.inst.map(i => ENT.inst.names[i]).join(' '), r.dp.map(d => d.n + ' ' + d.t).join(' '), r.subj.join(' '), r.det.join(' ')].join(' ').toLowerCase();
+  return r.hay;
+}
+function cell(r, k){
+  switch (k){
+    case 'pm': return r.pm >= 0 ? `<span class="pm pm-${PMS[r.pm].name}">${PMS[r.pm].name}</span>` : '';
+    case 'date': return `<span style="white-space:nowrap">${r.date}</span>`;
+    case 'client': return `<button class="link" data-cat="client" data-id="${r.c}">${esc(r.client)}</button>`;
+    case 'reg': return `<button class="link" data-cat="lob" data-id="${r.l}">${esc(r.reg)}</button>`;
+    case 'type': return esc(REGTYPE[r.type] || r.type);
+    case 'ind': return r.ind === 0 ? `<span class="ff" title="${esc(CLIENT_FF[r.c].seg)}">Fossil fuels</span>` : '<span class="muted small">Other</span>';
+    case 'inst': return `<div class="clip">${r.inst.map(i => `<button class="link" data-cat="inst" data-id="${i}">${esc(ENT.inst.names[i])}</button>`).join('<br>')}</div>`;
+    case 'dp': return `<div class="clip">${r.dp.map(d => `${d.id >= 0 ? `<button class="link" data-cat="dpoh" data-id="${d.id}">${esc(d.n)}</button>` : esc(d.n)}${d.t ? ` <span class="muted">– ${esc(d.t)}</span>` : ''}`).join('<br>')}</div>`;
+    case 'subj': return `<div class="clip">${r.sj.map(i => `<button class="link" data-cat="subj" data-id="${i}">${esc(ENT.subj.names[i])}</button>`).join('; ')}</div>`;
+    case 'det': return `<div class="clip">${r.det.map(esc).join('<br><br>')}</div>`;
+    default: return esc(r[k] ?? '');
+  }
+}
+class Grid {
+  constructor(host, {cols, filters = false, exportBtn = false, pageSize = 50, placeholder}){
+    this.host = host; this.cols = cols; this.pageSize = pageSize; this.base = []; this.view = []; this.page = 0; this.sortK = 'date'; this.sortDir = -1;
+    host.innerHTML = `<div class="row">
+      <input type="search" class="gsearch" placeholder="${placeholder || 'Search…'}">
+      ${filters ? `<select class="gind"><option value="">All industries</option><option value="0">Fossil fuels industry</option><option value="1">Other industries</option></select>
+      <select class="gpm"><option value="">All PMs</option>${PMS.map(p => `<option>${p.name}</option>`).join('')}</select>
+      <label class="small">from <input type="date" class="gfrom"></label><label class="small">to <input type="date" class="gto"></label>` : ''}
+      ${exportBtn ? '<button class="gexp">Export matches (CSV)</button>' : ''}</div>
+      <div class="small muted" style="margin-top:6px">Separate words with spaces to require all of them. Click a row to expand it; click a client or lobbyist to see their lobbying.</div>
+      <div class="scroll" style="margin-top:10px"><table></table></div>
+      <div class="pager"><span class="small muted gcount"></span>
+      <span class="row"><button class="gprev">‹ Prev</button><span class="small gpage"></span><button class="gnext">Next ›</button></span></div>`;
+    this.q = s => host.querySelector(s);
+    this.q('.gsearch').addEventListener('input', debounce(() => this.filter(), 300));
+    if (filters) ['.gind','.gpm','.gfrom','.gto'].forEach(s => this.q(s).addEventListener('change', () => this.filter()));
+    if (exportBtn) this.q('.gexp').onclick = () => this.export();
+    this.q('.gprev').onclick = () => { this.page--; this.render(); };
+    this.q('.gnext').onclick = () => { this.page++; this.render(); };
+    this.q('table').addEventListener('click', e => {
+      const b = e.target.closest('button.link'); if (b){ openEntity(b.dataset.cat, +b.dataset.id); return; }
+      const th = e.target.closest('th.sort');
+      if (th){ const k = th.dataset.k; this.sortDir = this.sortK === k ? -this.sortDir : (k === 'date' || k === 'id' ? -1 : 1); this.sortK = k; this.sort(); this.render(); return; }
+      const tr = e.target.closest('tbody tr'); if (tr) tr.querySelectorAll('td').forEach(td => td.classList.toggle('expand'));
+    });
+  }
+  setRows(rows){ this.base = rows; this.filter(); }
+  filter(){
+    const terms = this.q('.gsearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+    const pmSel = this.q('.gpm'), pmi = pmSel ? PMS.findIndex(p => p.name === pmSel.value) : -1;
+    const iv = this.q('.gind')?.value ?? '', ind = iv === '' ? -1 : +iv;
+    const fv = this.q('.gfrom')?.value, tv = this.q('.gto')?.value;
+    const from = fv ? toDay(fv) : -Infinity, to = tv ? toDay(tv) : Infinity;
+    this.view = this.base.filter(r => (ind < 0 || r.ind === ind) && (pmi < 0 || r.pm === pmi) && r.d >= from && r.d <= to && (!terms.length || terms.every(t => hay(r).includes(t))));
+    this.sort(); this.page = 0; this.render();
+  }
+  sort(){
+    const c = COLS[this.sortK]; if (!c || !c.sort) return;
+    const d = this.sortDir;
+    this.view.sort((a, b) => { const x = c.sort(a), y = c.sort(b); return (x < y ? -1 : x > y ? 1 : (b.id - a.id)) * d; });
+  }
+  render(){
+    const ps = this.pageSize, pages = Math.max(1, Math.ceil(this.view.length / ps));
+    this.page = Math.max(0, Math.min(this.page, pages - 1));
+    const head = this.cols.map(k => `<th class="${COLS[k].sort ? 'sort' : ''}" data-k="${k}">${COLS[k].l}${this.sortK === k ? (this.sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+    const rows = this.view.slice(this.page * ps, this.page * ps + ps).map(r =>
+      `<tr class="band-${PMS[r.pm]?.name || ''}">${this.cols.map(k => `<td>${cell(r, k)}</td>`).join('')}</tr>`).join('');
+    this.q('table').innerHTML = `<thead><tr>${head}</tr></thead><tbody>${rows || `<tr><td colspan="${this.cols.length}" class="muted">No matches.</td></tr>`}</tbody>`;
+    this.q('.gcount').textContent = `${nf.format(this.view.length)} of ${nf.format(this.base.length)} communications`;
+    this.q('.gpage').textContent = `Page ${this.page + 1} of ${nf.format(pages)}`;
+    this.q('.gprev').disabled = this.page === 0; this.q('.gnext').disabled = this.page >= pages - 1;
+  }
+  export(){
+    const out = [['COMLOG_ID','COMM_DATE','PRIME_MINISTER','CLIENT','INDUSTRY','FOSSIL_SEGMENT','LOBBYIST','REG_TYPE','DEPARTMENTS','OFFICIALS','SUBJECTS','DETAILS','SUBMITTED','POSTED','PREV_COMLOG_ID']];
+    for (const r of this.view) out.push([r.id, r.date, PMS[r.pm]?.name || '', r.client, r.ind === 0 ? 'Fossil fuels' : 'Other', CLIENT_FF[r.c]?.seg || '', r.reg, REGTYPE[r.type] || r.type,
+      r.inst.map(i => ENT.inst.names[i]).join('; '), r.dp.map(d => d.n + (d.t ? ' (' + d.t + ')' : '') + ' – ' + d.i).join('; '),
+      r.subj.join('; '), r.det.join(' | '), r.sub, r.posted, r.prev]);
+    const blob = new Blob(['﻿' + Papa.unparse(out)], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lobbying_communications_merged.csv'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+}
+
+// ---------- Entity drill-down ----------
+const dlg = $('dlg'); const navStack = [];
+function openEntity(cat, id, push = true){
+  if (push){ if (dlg.open && dlg._cur) navStack.push(dlg._cur); }
+  dlg._cur = {cat, id};
+  const rows = R.filter(MATCH[cat](id));
+  const stats = computeStats(rows);
+  const name = ENT[cat].names[id] || '(unnamed)';
+  const last = rows.length ? rows.reduce((m, r) => Math.max(m, r.d), 0) : null;
+  const ff = cat === 'client' && CLIENT_FF[id];
+  const variants = cat === 'client' ? [...(CLIENT_VARIANTS[id] || [])].filter(v => v !== name) : [];
+  $('dTitle').innerHTML = `<div class="kicker">${CATS[cat].one}${ff ? ` · <span class="ff">Fossil fuels industry</span> ${esc(ff.seg)}` : ''}</div>${esc(name)}`
+    + (variants.length ? `<div class="small muted" style="font-weight:400">Also filed as: ${variants.map(esc).join('; ')}</div>` : '');
+  $('dBack').classList.toggle('hidden', !navStack.length);
+  const body = $('dBody');
+  body.innerHTML = `<p class="small muted" style="margin:0 0 10px">${nf.format(rows.length)} communications in total${last ? `; most recent ${fmtDay(last)}` : ''}.</p>
+    <div class="scroll"><table class="esum"></table></div>
+    <h3>Communications per week, last 365 days</h3><div class="chart"></div>
+    <h3>Breakdown</h3><div class="ebreak"></div>
+    <h3>Subject matter and details (most recent first)</h3><div class="egrid"></div>`;
+  body.querySelector('.esum').innerHTML = summaryHTML(stats, cat);
+  if (!dlg.open) dlg.showModal();
+  body.scrollTop = 0; dlg.scrollTop = 0;
+  drawWeekly(body.querySelector('.chart'), rows);
+  new Breakdown(body.querySelector('.ebreak'), () => stats, cat);
+  const g = new Grid(body.querySelector('.egrid'), {cols:['date','pm','client','reg','inst','dp','subj','det'], pageSize:25, placeholder:'Search subjects, details, officials…'});
+  g.setRows(rows);
+}
+$('dClose').onclick = () => dlg.close();
+dlg.addEventListener('close', () => { navStack.length = 0; dlg._cur = null; });
+$('dBack').onclick = () => { const p = navStack.pop(); if (p) openEntity(p.cat, p.id, false); };
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+// ---------- After load ----------
+function finish(nFiles){
+  R.sort((a, b) => b.d - a.d || (b.id - a.id));
+  for (const r of R){
+    r.sj = [];
+    for (const l of r.subj){ const i = intern('subj', l.toLowerCase().replace(/\s+/g, ' ').trim(), l); if (!r.sj.includes(i)) r.sj.push(i); }
+  }
+  dataMin = R.reduce((m, r) => Math.min(m, r.d), Infinity);
+  dataMax = R.reduce((m, r) => Math.max(m, r.d), -Infinity);
+  $('loadForm').classList.add('hidden'); $('loadedBar').classList.remove('hidden');
+  $('loadedSummary').textContent = `${nf.format(R.length)} communications merged`;
+  $('loadedFiles').textContent = `from ${nFiles} file${nFiles === 1 ? '' : 's'} · ${fromDay(dataMin)} to ${fromDay(dataMax)}`;
+  $('statsSec').classList.remove('hidden'); $('tableSec').classList.remove('hidden');
+  $('anchor').value = fromDay(todayDay());
+  rebuildMain();
+  mainGrid = new Grid($('mainGrid'), {cols:Object.keys(COLS), filters:true, exportBtn:true, placeholder:'Search client, lobbyist, official, department, subject, details…'});
+  mainGrid.setRows(R);
+}
+$('anchor').addEventListener('change', rebuildMain);
+$('anchorToday').onclick = () => { $('anchor').value = fromDay(todayDay()); rebuildMain(); };
+$('anchorLatest').onclick = () => { $('anchor').value = fromDay(dataMax); rebuildMain(); };
+</script>
+</body>
+</html>
