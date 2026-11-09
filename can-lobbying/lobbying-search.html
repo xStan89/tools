@@ -39,6 +39,12 @@ button:disabled{opacity:.5;cursor:default}
 button.link{border:0;background:none;padding:0;color:var(--accent);text-align:left;cursor:pointer}
 button.link:hover{text-decoration:underline}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.srcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.src{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--panel)}
+.src h3{margin:0 0 4px} .src p{margin:6px 0}
+a.btn{display:inline-block;text-decoration:none;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+a.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.steps{margin:0 0 10px;padding-left:20px} .steps li{margin:3px 0}
 .progress{height:6px;background:var(--chip-bg);border-radius:3px;overflow:hidden;margin-top:10px}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 .note{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 12px;font-size:13px;margin:12px 0}
@@ -104,22 +110,42 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <section id="loadSec">
   <div id="loadForm">
-    <h2 id="loadTitle">Loading the latest data…</h2>
-    <div id="loadMsg" class="small"></div>
-    <div id="manual" class="hidden">
-    <div class="row" style="margin-bottom:12px">
-      <button class="primary" id="fetchBtn">Download latest federal data</button>
-      <span class="small muted" id="fetchMsg">Gets the weekly ZIP from the <a href="https://www.lobbycanada.gc.ca/en/open-data" target="_blank" rel="noopener">Registry of Lobbyists open data</a> page.</span>
+    <h2>1. Get the data and load it</h2>
+    <p class="small" style="margin:0 0 12px">Load one, two or all three datasets, then click <strong>Merge &amp; analyse</strong>. The provincial data is hosted with this tool and loads with a click. The federal file is too big to host, so download it yourself and drop it in below. Everything is read in your browser; nothing is uploaded.</p>
+    <div class="srcs">
+      <div class="src">
+        <h3>Federal</h3>
+        <p class="small muted">Office of the Commissioner of Lobbying of Canada, Monthly Communication Reports. Updated weekly; from July 2008.</p>
+        <div class="row"><button class="primary" id="fetchBtn">Download federal ZIP</button></div>
+        <p class="small" id="fetchMsg">File: <code>communications_ocl_cal.zip</code>. Or get it from the <a href="https://www.lobbycanada.gc.ca/en/open-data" target="_blank" rel="noopener">open data page</a> under "Monthly communication reports".</p>
+      </div>
+      <div class="src">
+        <h3>British Columbia</h3>
+        <p class="small muted">Office of the Registrar of Lobbyists for BC, <a href="https://www.lobbyistsregistrar.bc.ca/the-registry/open-data/" target="_blank" rel="noopener">Lobbying Activity Reports</a>. Updated monthly; from May 2020.</p>
+        <div class="row"><button class="primary hostBtn" data-region="bc">Load BC data</button></div>
+        <p class="small hostMsg" id="hostMsg-bc"></p>
+      </div>
+      <div class="src">
+        <h3>Alberta</h3>
+        <p class="small muted"><a href="https://www.albertalobbyistregistry.ca/" target="_blank" rel="noopener">Alberta Lobbyist Registry</a> filings, collected with the lobby scraper (the registry has no bulk download).</p>
+        <div class="row"><button class="primary hostBtn" data-region="ab">Load Alberta data</button></div>
+        <p class="small hostMsg" id="hostMsg-ab"></p>
+      </div>
     </div>
+    <h3 style="margin-top:16px">Load the federal file</h3>
+    <ol class="small steps">
+      <li>Drop the downloaded federal ZIP on the box below, or click it to choose it. Drop it as it is: it's unpacked for you. Unpacked CSVs work too.</li>
+      <li>Check that the federal files are ticked in the list. Files are recognised by their columns, so their names don't matter.</li>
+      <li>Click <strong>Merge &amp; analyse</strong>. The federal file takes a minute or so.</li>
+    </ol>
     <label class="drop" id="drop">
       <input type="file" id="fileInput" multiple accept=".zip,.csv" class="hidden">
-      <strong>Drop the federal ZIP or CSV files, and/or the Alberta list CSV, here or click to choose them</strong>
-      <span class="small muted">The ZIP is unpacked for you. Files are recognised by their column headers, so names don't matter. The Alberta file is <code>ab_registrations_list.csv</code> from the Alberta scraper.</span>
+      <strong>Drop the federal ZIP here, or click to choose it</strong>
+      <span class="small muted">Provincial files can be dropped here too, e.g. a newer BC ZIP or Alberta CSV than the hosted copies.</span>
     </label>
     <div class="files" id="fileList"></div>
     <div class="row" style="margin-top:12px">
       <button class="primary" id="goBtn" disabled>Merge &amp; analyse</button>
-    </div>
     </div>
     <div class="row" style="margin-top:8px"><span id="status" class="muted small"></span></div>
     <div class="progress"><div id="bar"></div></div>
@@ -229,7 +255,7 @@ function renderFileList(){
   $('fileList').innerHTML = Object.entries(KINDS).map(([k, v]) =>
     `<div>${files[k] ? '<span class="ok">✓</span>' : '<span class="miss">○</span>'} ${v.label}${files[k] ? `<div class="small muted fname">${esc(files[k].name)}</div>` : ''}</div>`).join('');
   $('goBtn').disabled = !files.primary && !files.ab && !files.bcPrimary;
-  $('status').textContent = (files.primary || files.ab || files.bcPrimary) ? '' : 'For federal data the Primary file is required; the others add detail. The Alberta list can be loaded on its own or with the federal files.';
+  $('status').textContent = (files.primary || files.ab || files.bcPrimary) ? '' : 'Load at least one dataset. Federal needs its primary (communications) file and BC its activity reports file; the other files add detail. Each dataset can be loaded on its own.';
 }
 const ZIP_URL = 'https://lobbycanada.gc.ca/media/mqbbmaqk/communications_ocl_cal.zip';
 async function unzip(blob, name){
@@ -272,9 +298,44 @@ $('fetchBtn').addEventListener('click', async () => {
   } catch (err){
     // The registry usually blocks direct reads from other sites, so fall back to a normal download.
     const a = document.createElement('a'); a.href = ZIP_URL; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
-    msg.innerHTML = 'The registry doesn\'t allow direct loading, so your browser is downloading the ZIP instead. When it finishes, drop it in the box below. If no download started, <a href="' + ZIP_URL + '" target="_blank" rel="noopener">download it here</a>.';
+    msg.innerHTML = 'Your browser is downloading <code>communications_ocl_cal.zip</code>. When it finishes, drop it in the box below. If no download started, <a href="' + ZIP_URL + '" target="_blank" rel="noopener">download it here</a>.';
   } finally { btn.disabled = false; }
 });
+// ---------- Hosted provincial data ----------
+// These files sit next to this page on the web server (where lobby_scraper.py --out writes them).
+const HOSTED = {
+  bc: {name:'BC', need:'bcPrimary', files:['bc/ORL_LAR_Data/LAR_Primary_Export.csv', 'bc/ORL_LAR_Data/LAR_SPOH_Export.csv',
+       'bc/ORL_LAR_Data/LAR_SubjectMatterDetails_Export.csv', 'bc/ORL_LAR_Data/Subject_Matters_Export.csv'],
+       fallback:['bc/ORL_LAR_Data.zip', 'ORL_LAR_Data.zip']},
+  ab: {name:'Alberta', need:'ab', files:['ab_registrations_list.csv'], fallback:[]}
+};
+async function fetchHosted(path){
+  try {
+    const res = await fetch(path, {cache:'no-cache'});
+    if (!res.ok || /text\/html/i.test(res.headers.get('content-type') || '')) return null; // missing, or a server's "not found" page
+    const blob = await res.blob();
+    return new File([blob], path.split('/').pop(), {type:blob.type});
+  } catch (err){ return null; }
+}
+document.querySelectorAll('.hostBtn').forEach(btn => btn.addEventListener('click', async () => {
+  const H = HOSTED[btn.dataset.region], msg = $('hostMsg-' + btn.dataset.region);
+  if (location.protocol === 'file:'){
+    msg.innerHTML = `This only works when the tool is on a web server, not opened from disk. Run <code>python -m http.server</code> in the tool's folder and open <code>http://localhost:8000</code>, or drop the ${H.name} files in the box below.`;
+    return;
+  }
+  btn.disabled = true; msg.textContent = `Loading ${H.name} data…`;
+  const got = [];
+  for (const f of H.files){ const x = await fetchHosted(f); if (x) got.push(x); }
+  if (!got.length) for (const f of H.fallback){ const x = await fetchHosted(f); if (x){ got.push(x); break; } }
+  await addFiles(got);
+  if (files[H.need]){
+    msg.innerHTML = `<span class="ok">✓</span> Loaded. Click <strong>Merge &amp; analyse</strong> when you're ready.`;
+    btn.textContent = `${H.name} data loaded`;
+  } else {
+    msg.innerHTML = `The ${H.name} data isn't on this server. It should be at ${H.files.map(f => `<code>${f}</code>`).join(', ')}.`;
+    btn.disabled = false;
+  }
+}));
 const drop = $('drop');
 ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -618,55 +679,6 @@ function abRow(r, ix){
   R.push(rec);
 }
 
-// ---------- Automatic loading from the tool's own folder ----------
-// Put these files next to index.html on the web server. The federal ZIP can replace the five federal CSVs.
-const DATA_FILES = [
-  'Communication_PrimaryExport.csv',
-  'Communication_DpohExport.csv',
-  'Communication_SubjectMattersExport.csv',
-  'Communication_SubjectMatterDetailsExport.csv',
-  'Codes_SubjectMatterTypesExport.csv',
-  'ab_registrations_list.csv',
-  'bc/ORL_LAR_Data/LAR_Primary_Export.csv',
-  'bc/ORL_LAR_Data/LAR_SPOH_Export.csv',
-  'bc/ORL_LAR_Data/LAR_SubjectMatterDetails_Export.csv',
-  'bc/ORL_LAR_Data/Subject_Matters_Export.csv'
-];
-const FED_ZIP_FILE = 'communications_ocl_cal.zip';
-async function fetchFile(name){
-  try {
-    const res = await fetch(name, {cache:'no-cache'});
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    if (/text\/html/i.test(res.headers.get('content-type') || '')) return null; // a server's "not found" page
-    return new File([blob], name, {type: blob.type});
-  } catch (err){ return null; }
-}
-function showManual(msg){
-  $('loadTitle').textContent = 'Data files not found';
-  $('loadMsg').innerHTML = msg;
-  $('manual').classList.remove('hidden');
-}
-async function autoLoad(){
-  if (location.protocol === 'file:'){
-    showManual(`<p>The tool reads its data from the folder it's hosted in, which browsers don't allow for a file opened directly from disk. Put <code>index.html</code> and the data files on a web server (or run <code>python -m http.server</code> in the folder and open <code>http://localhost:8000</code>). Until then, you can load the files by hand below.</p>`);
-    return;
-  }
-  $('status').textContent = 'Downloading data files…';
-  const got = [];
-  for (let i = 0; i < DATA_FILES.length; i++){
-    $('status').textContent = `Downloading ${DATA_FILES[i]}…`;
-    $('bar').style.width = (100 * i / (DATA_FILES.length + 1)).toFixed(0) + '%';
-    const f = await fetchFile(DATA_FILES[i]); if (f) got.push(f);
-  }
-  if (!got.some(f => f.name === DATA_FILES[0])){ const z = await fetchFile(FED_ZIP_FILE); if (z) got.push(z); }
-  await addFiles(got);
-  if (!files.primary && !files.ab && !files.bcPrimary){
-    showManual(`<p>None of the expected data files were found next to the tool. It looks for: ${DATA_FILES.map(n => `<code>${n}</code>`).join(', ')} (or <code>${FED_ZIP_FILE}</code> in place of the five federal CSVs).</p>`);
-    return;
-  }
-  runMerge();
-}
 $('goBtn').addEventListener('click', runMerge);
 async function runMerge(){
   $('goBtn').disabled = true;
@@ -770,7 +782,7 @@ function renderNotes(){
     <p><strong>Lobbyists:</strong> for consultant reports, the consultant who filed; for in-house reports, each in-house lobbyist listed. "Member(s) of the BC Legislative Assembly" is how BC records contacts with MLAs as a group.</p>
     ${FOSSIL_NOTE}
     ${osaNote()}
-    <p><strong>Source:</strong> BC Office of the Registrar of Lobbyists open data (Lobbying Activity Reports), collected with the lobby scraper's <code>bc</code> step.</p>
+    <p><strong>Source:</strong> BC Office of the Registrar of Lobbyists open data (Lobbying Activity Reports), downloaded from its open data page.</p>
     ${fossilListHTML()}`;
   } else {
     $('notes').innerHTML = `
@@ -1176,7 +1188,6 @@ function show(key){
 $('anchor').addEventListener('change', rebuildMain);
 $('anchorToday').onclick = () => { $('anchor').value = fromDay(todayDay()); rebuildMain(); };
 $('anchorLatest').onclick = () => { $('anchor').value = fromDay(dataMax); rebuildMain(); };
-autoLoad();
 </script>
 </body>
 </html>
