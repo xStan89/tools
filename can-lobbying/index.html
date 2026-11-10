@@ -164,16 +164,13 @@ td.num strong{font-weight:500;color:var(--accent-text)}
         <p class="small hostMsg" id="hostMsg-ab"></p>
       </div>
     </div>
-    <h3 style="margin-top:16px">Load the federal file</h3>
+    <!-- <h3 style="margin-top:16px">Load the federal file</h3> -->
     <ol class="small steps">
-      <li>Drop the downloaded federal ZIP on the box below, or click it to choose it. Drop it as it is: it's unpacked for you. Unpacked CSVs work too.</li>
-      <li>Check that the federal files are ticked in the list. Files are recognised by their columns, so their names don't matter.</li>
-      <li>Click <strong>Merge &amp; analyse</strong>. The federal file takes a minute or so.</li>
     </ol>
     <label class="drop" id="drop">
       <input type="file" id="fileInput" multiple accept=".zip,.csv" class="hidden">
-      <strong>Drop the federal ZIP here, or click to choose it</strong>
-      <span class="small muted">Provincial files can be dropped here too, e.g. a newer BC ZIP or Alberta CSV than the hosted copies.</span>
+      <strong>Drop the federal ZIP here, or click to load it</strong>
+      <span class="small muted">Provincial files can be dropped here too if you have more recent versions.</span>
     </label>
     <div class="files" id="fileList"></div>
     <div class="row" style="margin-top:12px">
@@ -271,13 +268,13 @@ function abDate(s){ // "03-Nov-2026" -> "2026-11-03"
 
 // ---------- File handling ----------
 const KINDS = {
-  codes:   {label:'Federal subject matter codes (optional, built in)', test:h => h.includes('SMT_EN_DESC'), order:0},
-  primary: {label:'Federal primary (communications)', test:h => h.includes('COMM_DATE') && h.includes('COMLOG_ID'), order:1},
+  codes:   {label:'Federal subject matter codes', test:h => h.includes('SMT_EN_DESC'), order:0},
+  primary: {label:'Federal primary communications', test:h => h.includes('COMM_DATE') && h.includes('COMLOG_ID'), order:1},
   dpoh:    {label:'Federal officials (DPOH)', test:h => h.includes('DPOH_LAST_NM_TCPD'), order:2},
   subj:    {label:'Federal subject matters', test:h => h.includes('CUSTOM_SUBJ_OBJET_PERSO'), order:3},
   details: {label:'Federal subject matter details', test:h => h.includes('DESCRIPTION') && h.includes('COMLOG_ID'), order:4},
   ab:      {label:'Alberta registrations list', test:h => h.includes('registration_number') && h.includes('government_departments_lobbied'), order:5, encoding:'utf-8'},
-  bcCodes:   {label:'BC subject matter codes (optional, built in)', test:h => h.includes('SUBJECT_MATTER_ID') && h.includes('SUBJECT_MATTER'), order:6, encoding:'utf-8'},
+  bcCodes:   {label:'BC subject matter codes', test:h => h.includes('SUBJECT_MATTER_ID') && h.includes('SUBJECT_MATTER'), order:6, encoding:'utf-8'},
   bcPrimary: {label:'BC lobbying activity reports', test:h => h.includes('LAR_ID') && h.includes('MEETING_DATE'), order:7, encoding:'utf-8'},
   bcSpoh:    {label:'BC officials lobbied', test:h => h.includes('LAR_ID') && h.includes('SPOH_LAST_NAME'), order:8, encoding:'utf-8'},
   bcDetails: {label:'BC subject matter details', test:h => h.includes('LAR_ID') && h.includes('TOPIC_OF_LOBBYING'), order:9, encoding:'utf-8'}
