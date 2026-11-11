@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lobbying Communications Explorer</title>
+<link rel="icon" type="image/png" href="favicon-desmog.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
@@ -187,7 +188,7 @@ td.num strong{font-weight:500;color:var(--accent-text)}
 </section>
 
 <section id="statsSec" class="hidden">
-  <h2 id="statsTitle">2. Totals by Prime Minister and recent periods</h2>
+  <h2 id="statsTitle">Totals by Prime Minister and recent periods</h2>
   <div class="row small" style="margin-bottom:8px">
     <label>"Last 365 / 30 days" counted back from <input type="date" id="anchor"></label>
     <button id="anchorToday">Today</button>
@@ -200,12 +201,12 @@ td.num strong{font-weight:500;color:var(--accent-text)}
 
   <div class="note" id="notes"></div>
 
-  <h2 style="margin-top:18px">Breakdown</h2>
+  <h2 style="margin-top:18px">BREAKDOWN</h2>
   <div id="mainBreak"></div>
 </section>
 
 <section id="tableSec" class="hidden">
-  <h2 id="tableTitle">3. All communications (one row each)</h2>
+  <h2 id="tableTitle">ALL COMMUNICATIONS</h2>
   <div id="mainGrid"></div>
 </section>
 </main>
@@ -474,7 +475,7 @@ const FED = newDataset('fed', {
     sub:    {l:'Submitted', sort:r => r.sub}
   },
   dlgCols:['date','pm','client','ind','reg','inst','dp','subj','det'],
-  dlgTitle:'Subject matter and details (most recent first)',
+  dlgTitle:'ALL COMMUNICATIONS',
   tally(r, s){ s.x.instContacts = (s.x.instContacts || 0) + r.inst.length; s.x.dpohContacts = (s.x.dpohContacts || 0) + r.dpIds.length; },
   hay(r){ return [r.id, r.date, PMS[r.pm]?.name, r.client, r.reg, REGTYPE[r.type],
     r.inst.map(i => ENT.inst.names[i]).join(' '), r.dp.map(d => d.n + ' ' + d.t).join(' '), r.subj.join(' '), r.det.join(' ')].join(' '); },
@@ -582,7 +583,7 @@ const BC = newDataset('bc', {
     sub:    {l:'Submitted', sort:r => r.sub}
   },
   dlgCols:['date','pm','client','ind','lobs','inst','dp','subj','det'],
-  dlgTitle:'Subject matter and topics (most recent first)',
+  dlgTitle:'ALL COMMUNICATIONS (ONE ROW EACH)',
   tally(r, s){ s.x.instContacts = (s.x.instContacts || 0) + r.inst.length; s.x.dpohContacts = (s.x.dpohContacts || 0) + r.dpIds.length; },
   hay(r){ return [r.id, r.date, PMS[r.pm]?.name, r.client, REGTYPE[r.type], r.ls.map(i => ENT.lob.names[i]).join(' '), r.coal.join(' '),
     r.inst.map(i => ENT.inst.names[i]).join(' '), r.dp.map(d => d.n + ' ' + d.t).join(' '), r.subj.join(' '), r.det.join(' ')].join(' '); },
@@ -1173,7 +1174,7 @@ function openEntity(cat, id, push = true){
   body.innerHTML = `<p class="small muted" style="margin:0 0 10px">${nf.format(rows.length)} ${DSET.noun} in total${last ? `; most recent ${fmtDay(last)}` : ''}${DSET.isActive ? `. ${actRegs ? `${nf.format(actRegs)} active registration${actRegs === 1 ? '' : 's'} now` : 'No active registrations now'}` : ''}.</p>
     <div class="scroll"><table class="esum"></table></div>
     <h3>${DSET.Noun} per week, last 365 days</h3><div class="chart"></div>
-    <h3>Breakdown</h3><div class="ebreak"></div>
+    <h3>BREAKDOWN</h3><div class="ebreak"></div>
     <h3>${DSET.dlgTitle}</h3><div class="egrid"></div>`;
   body.querySelector('.esum').innerHTML = summaryHTML(stats, cat);
   if (!dlg.open) dlg.showModal();
@@ -1225,9 +1226,9 @@ function show(key){
   useDataset(ds);
   $('anchor').value = fromDay(ds.dataMax);   // count "last 365 / 30 days" back from this dataset's latest record
   document.querySelectorAll('#dsTabs button').forEach(b => b.classList.toggle('on', b.dataset.ds === key));
-  $('statsTitle').textContent = `2. ${ds.title}: totals by ${ds.leaderWord} and recent periods`;
+  $('statsTitle').textContent = `${ds.title}: totals by ${ds.leaderWord} and recent periods`;
   $('chartTitle').textContent = chartTitle();
-  $('tableTitle').textContent = `3. All ${ds.noun} (one row each)`;
+  $('tableTitle').textContent = `All ${ds.noun}`;
   mainBreak = null;
   rebuildMain();
   mainGrid = new Grid($('mainGrid'), {cols:Object.keys(COLS), filters:true, exportBtn:true,
